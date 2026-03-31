@@ -12,6 +12,7 @@ We don't just talk tech. We spark high-energy dialogues between disparate fields
 - **AI Security x Human Ethics**: Testing the limits of silicon-based logic.
 - **Health-Tech x Hard-Code**: Bridging the gap between clinical needs and algorithmic precision.
 - **Heavy Machinery x Autonomous Systems**: Bringing IT intelligence to the physical world.
+- **Anti-Deepfake & Digital Trust**: Developing the "immune system" for truth in a world of AI-generated deception.
 
 ## 👨‍💻 Access Challenge (Python)
 If you understand the logic below, you are the type of Nerd we respect.

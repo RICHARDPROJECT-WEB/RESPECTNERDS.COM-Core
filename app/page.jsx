@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { MessageSquare, Activity, User, Plus } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { subscribeToTopics, createTopic } from '../../lib/db';
-import { useAuth } from '../../contexts/AuthContext';
+import { subscribeToTopics, createTopic } from '../lib/db';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Home() {
   const [topics, setTopics] = useState([]);

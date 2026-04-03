@@ -1,20 +1,59 @@
+"use client";
+
 import Link from 'next/link';
-import { ArrowLeft, MessageSquare, ThumbsUp, MoreVertical } from 'lucide-react';
+import { ArrowLeft, MessageSquare, ThumbsUp, MoreVertical, Send } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { getTopic, subscribeToReplies, createReply } from '../../../lib/db';
+import { useAuth } from '../../../contexts/AuthContext';
 
 export default function TopicPage({ params }) {
-  // Mock data for the thread 
-  const thread = {
-    id: params.id,
-    title: "Is writing code with AI considered 'cheating'?",
-    author: "prompt_mage",
-    time: "1 day ago",
-    content: "I've been using AI tools to write scripts and build apps faster. Some of my senior colleagues say this is 'cheating' and that I'm not learning the fundamentals. I feel like it's just a tool to eliminate boilerplate. What do you all think?",
-    likes: 210,
-    replies: [
-      { id: 101, author: "old_school_dev", time: "23 hours ago", content: "It's not cheating, but your colleagues have a point. If you don't know the fundamentals, you won't know how to debug complex issues when the AI hallucinates.", likes: 85 },
-      { id: 102, author: "startup_hustler", time: "20 hours ago", content: "Who cares if it's cheating? If you're building products that work and users are happy, that's all that matters. Speed is everything right now.", likes: 132 },
-    ]
+  const { id } = params;
+  const [thread, setThread] = useState(null);
+  const [replies, setReplies] = useState([]);
+  const [newReply, setNewReply] = useState("");
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // 1. Fetch main topic details once
+    getTopic(id).then(data => {
+      setThread(data);
+    });
+
+    // 2. Subscribe to live replies feed
+    const unsubscribe = subscribeToReplies(id, (data) => {
+      setReplies(data);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [id]);
+
+  const handlePostReply = async () => {
+    if (!newReply.trim() || !user) return;
+    try {
+      await createReply(id, newReply, user);
+      setNewReply("");
+    } catch (err) {
+      alert("Failed to post reply: " + err.message);
+    }
   };
+
+  function formatTime(timestamp) {
+    if (!timestamp) return "Just now";
+    const date = timestamp.toDate();
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) return "Just now";
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  }
+
+  if (!thread) {
+    return <div className="container" style={{ padding: '40px', textAlign: 'center' }}>Loading discussion...</div>;
+  }
 
   return (
     <div className="topic-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -29,61 +68,59 @@ export default function TopicPage({ params }) {
         <div className="flex items-center justify-between mb-6 color-secondary text-sm">
           <div className="flex items-center gap-2">
             <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
-              {thread.author[0].toUpperCase()}
+              {(thread.authorName || 'A')[0].toUpperCase()}
             </div>
-            <span className="font-semibold text-primary">{thread.author}</span>
+            <span className="font-semibold text-primary">{thread.authorName}</span>
             <span>•</span>
-            <span>{thread.time}</span>
+            <span>{formatTime(thread.createdAt)}</span>
           </div>
           <button className="theme-toggle" style={{ border: 'none', background: 'transparent' }}>
             <MoreVertical size={16} />
           </button>
         </div>
         
-        <div className="text-base mb-6" style={{ lineHeight: '1.7' }}>
+        <div className="text-base mb-6" style={{ lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
           {thread.content}
         </div>
 
-        <div className="flex items-center gap-4 border-t pt-4" style={{ borderColor: 'var(--border-color)' }}>
+        <div className="flex items-center gap-4 border-t pt-4" style={{ borderColor: 'var(--border-color)', marginTop: '20px' }}>
           <button className="btn btn-outline flex items-center gap-2">
             <ThumbsUp size={16} />
-            {thread.likes}
-          </button>
-          <button className="btn btn-outline flex items-center gap-2">
-            <MessageSquare size={16} />
-            Reply
+            {thread.likes || 0}
           </button>
         </div>
       </div>
 
       {/* Replies */}
-      <h3 className="text-lg font-bold mb-4">{thread.replies.length} Replies</h3>
+      <h3 className="text-lg font-bold mb-4">{replies.length} Replies</h3>
       <div className="flex" style={{ flexDirection: 'column', gap: '16px' }}>
-        {thread.replies.map(reply => (
+        {replies.map(reply => (
           <div key={reply.id} className="card" style={{ padding: '20px' }}>
             <div className="flex items-center gap-2 mb-3 color-secondary text-sm">
-              <span className="font-semibold color-primary">{reply.author}</span>
+               <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: 'var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)', fontWeight: 'bold', fontSize: '10px' }}>
+                {(reply.authorName || 'R')[0].toUpperCase()}
+              </div>
+              <span className="font-semibold color-primary">{reply.authorName}</span>
               <span>•</span>
-              <span>{reply.time}</span>
+              <span>{formatTime(reply.createdAt)}</span>
             </div>
-            <div className="text-sm" style={{ marginBottom: '16px', lineHeight: '1.6' }}>
+            <div className="text-sm" style={{ marginBottom: '16px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
               {reply.content}
-            </div>
-            <div className="flex items-center gap-4">
-              <button className="flex items-center gap-1 color-secondary text-xs" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <ThumbsUp size={14} />
-                {reply.likes}
-              </button>
             </div>
           </div>
         ))}
+        {loading && <div className="text-center color-secondary py-4">Loading replies...</div>}
+        {!loading && replies.length === 0 && <div className="text-center color-secondary py-4">No replies yet. Be the first to chime in!</div>}
       </div>
 
-      {/* Reply input skeleton */}
+      {/* Reply input */}
       <div className="card mt-6">
         <textarea 
-          placeholder="Write a reply..." 
+          placeholder={user ? "Write a reply..." : "Please Login with Google to join the discussion."} 
           className="text-base"
+          disabled={!user}
+          value={newReply}
+          onChange={(e) => setNewReply(e.target.value)}
           style={{ 
             width: '100%', 
             minHeight: '100px', 
@@ -93,12 +130,23 @@ export default function TopicPage({ params }) {
             backgroundColor: 'var(--bg-color)',
             color: 'var(--text-primary)',
             marginBottom: '12px',
-            resize: 'vertical'
+            resize: 'vertical',
+            opacity: user ? 1 : 0.6
           }} 
         />
         <div className="flex justify-between items-center">
-          <span className="text-xs color-secondary">Sign in to reply</span>
-          <button className="btn btn-primary" disabled style={{ opacity: 0.5 }}>Post Reply</button>
+          <span className="text-xs color-secondary">
+            {user ? `Posting as ${user.displayName || user.email}` : "Sign in to reply"}
+          </span>
+          <button 
+            className="btn btn-primary flex items-center gap-2" 
+            disabled={!user || !newReply.trim()} 
+            style={{ opacity: (!user || !newReply.trim()) ? 0.5 : 1 }}
+            onClick={handlePostReply}
+          >
+            <Send size={16} />
+            Post Reply
+          </button>
         </div>
       </div>
 

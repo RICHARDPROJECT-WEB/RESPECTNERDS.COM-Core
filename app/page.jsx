@@ -1,31 +1,104 @@
+"use client";
+
 import Link from 'next/link';
-import { MessageSquare, Activity } from 'lucide-react';
+import { MessageSquare, Activity, User, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { subscribeToTopics, createTopic } from '../../lib/db';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Home() {
-  // Mock data for the MVP presentation
-  const mockTopics = [
-    { id: 1, title: "Show off your latest home server setup!", author: "admin_geek", replies: 142, likes: 89, time: "2 hours ago" },
-    { id: 2, title: "What's the best Linux distro for software engineering in 2024?", author: "tux_lover", replies: 56, likes: 34, time: "5 hours ago" },
-    { id: 3, title: "Is writing code with AI considered 'cheating'?", author: "prompt_mage", replies: 312, likes: 210, time: "1 day ago" },
-    { id: 4, title: "Mechanical Keyboard enthusiasts: Show your daily drivers", author: "click_clack", replies: 88, likes: 45, time: "1 day ago" },
-  ];
+  const [topics, setTopics] = useState([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const unsubscribe = subscribeToTopics((data) => {
+      setTopics(data);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleCreateTopic = async (e) => {
+    e.preventDefault();
+    if (!newTitle.trim() || !newContent.trim() || !user) return;
+    try {
+      await createTopic(newTitle, newContent, user);
+      setIsCreating(false);
+      setNewTitle("");
+      setNewContent("");
+    } catch (err) {
+      alert("Failed to create topic: " + err.message);
+    }
+  };
+
+  function formatTime(timestamp) {
+    if (!timestamp) return "Just now";
+    const date = timestamp.toDate();
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) return "Just now";
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  }
 
   return (
     <div className="forum-grid">
       <div className="main-feed">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Latest Discussions</h1>
-          <button className="btn btn-primary flex items-center gap-2">
-            <MessageSquare size={18} />
-            New Topic
-          </button>
+          {user && (
+            <button 
+              className="btn btn-primary flex items-center gap-2"
+              onClick={() => setIsCreating(!isCreating)}
+            >
+              {isCreating ? 'Cancel' : <><Plus size={18} /> New Topic</>}
+            </button>
+          )}
         </div>
 
+        {isCreating && user && (
+          <form className="card mb-6" onSubmit={handleCreateTopic}>
+            <h3 className="font-bold mb-4">Start a new discussion</h3>
+            <input 
+              type="text" 
+              placeholder="Title..." 
+              className="mb-4 text-base"
+              style={{ width: '100%', padding: '12px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)' }}
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              required
+            />
+            <textarea 
+              placeholder="What's on your mind?..." 
+              className="mb-4 text-base"
+              style={{ width: '100%', minHeight: '120px', padding: '12px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', resize: 'vertical' }}
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              required
+            />
+            <div className="flex justify-end">
+              <button type="submit" className="btn btn-primary">Post Topic</button>
+            </div>
+          </form>
+        )}
+
         <div className="card">
-          {mockTopics.map((topic) => (
+          {loading ? (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading threads...</div>
+          ) : topics.length === 0 ? (
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              No discussions yet. Be the first to start one!
+            </div>
+          ) : topics.map((topic) => (
             <div key={topic.id} className="topic-item">
               <div className="topic-stats">
-                <span className="font-bold text-lg">{topic.likes}</span>
+                <span className="font-bold text-lg">{topic.likes || 0}</span>
                 <span className="text-xs color-secondary">Likes</span>
               </div>
               <div className="topic-content">
@@ -33,14 +106,14 @@ export default function Home() {
                   <h3 className="topic-title">{topic.title}</h3>
                 </Link>
                 <div className="topic-meta">
-                  <span className="flex items-center gap-2">
-                    <UserIcon /> {topic.author}
+                  <span className="flex items-center gap-1">
+                     <User size={14} /> {topic.authorName}
                   </span>
                   <span>•</span>
-                  <span>{topic.time}</span>
+                  <span>{formatTime(topic.createdAt)}</span>
                   <span>•</span>
-                  <span className="flex items-center gap-2">
-                    <MessageSquare size={14} /> {topic.replies} replies
+                  <span className="flex items-center gap-1">
+                    <MessageSquare size={14} /> {topic.replyCount || 0} replies
                   </span>
                 </div>
               </div>
@@ -63,23 +136,15 @@ export default function Home() {
           </div>
         </div>
         
-        <div className="card" style={{ backgroundColor: 'var(--surface-color)', padding: '24px', borderRadius: 'var(--radius-md)' }}>
-          <h3 className="text-lg font-bold mb-2">Welcome to Respect Nerds</h3>
-          <p className="color-secondary text-sm mb-4">
-            A safe, fast, and modern community for hackers, engineers, and tech enthusiasts.
-          </p>
-          <button className="btn btn-primary" style={{ width: '100%' }}>Create Account</button>
-        </div>
+        {!user && (
+          <div className="card" style={{ backgroundColor: 'var(--surface-color)', padding: '24px', borderRadius: 'var(--radius-md)' }}>
+            <h3 className="text-lg font-bold mb-2">Welcome to Respect Nerds</h3>
+            <p className="color-secondary text-sm mb-4">
+              A safe, fast, and modern community for hackers, engineers, and tech enthusiasts.
+            </p>
+          </div>
+        )}
       </div>
     </div>
-  );
-}
-
-function UserIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-      <circle cx="12" cy="7" r="4"></circle>
-    </svg>
   );
 }

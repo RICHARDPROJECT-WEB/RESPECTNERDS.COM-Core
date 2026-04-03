@@ -30,14 +30,9 @@ export default function ThemeProvider({ children }) {
     localStorage.setItem("theme", newTheme);
   };
 
-  if (!mounted) {
-    // Avoid hydration mismatch by initially rendering without the context applying
-    return <div style={{ visibility: "hidden" }}>{children}</div>;
-  }
-
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {children}
+      {!mounted ? <div style={{ visibility: "hidden" }}>{children}</div> : children}
     </ThemeContext.Provider>
   );
 }
